@@ -13,7 +13,7 @@ use embassy_executor::Spawner;
 use embassy_rp::clocks::RoscRng;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::spi;
-use embassy_rp::spi::{Blocking, Spi};
+use embassy_rp::spi::Spi;
 use embassy_time::{Delay, Duration, Timer};
 use embedded_graphics::image::{Image, ImageRawLE};
 use embedded_graphics::pixelcolor::Rgb565;
@@ -44,12 +44,12 @@ async fn main(_spawner: Spawner) {
     let clk = p.PIN_10;
 
     // create SPI
-    let mut display_config = spi::Config::default();
-    display_config.frequency = DISPLAY_FREQ;
-    display_config.phase = spi::Phase::CaptureOnSecondTransition;
-    display_config.polarity = spi::Polarity::IdleHigh;
+    let mut config = spi::Config::default();
+    config.frequency = DISPLAY_FREQ;
+    config.phase = spi::Phase::CaptureOnSecondTransition;
+    config.polarity = spi::Polarity::IdleHigh;
 
-    let spi: Spi<'_, _, Blocking> = Spi::new_blocking_txonly(p.SPI1, clk, mosi, display_config.clone());
+    let spi = Spi::new_blocking_txonly(p.SPI1, clk, mosi, config);
 
     let display_cs = Output::new(display_cs, Level::High);
     let dcx = Output::new(dcx, Level::Low);
