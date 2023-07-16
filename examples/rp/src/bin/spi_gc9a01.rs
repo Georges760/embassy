@@ -19,6 +19,7 @@ use embedded_graphics::image::{Image, ImageRawLE};
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::{PrimitiveStyleBuilder, Rectangle};
+use embedded_hal_async::spi::ExclusiveDevice;
 use mipidsi::Builder;
 use rand_core::RngCore;
 use {defmt_rtt as _, panic_probe as _};
@@ -38,7 +39,7 @@ async fn main(_spawner: Spawner) {
 
     let bl = p.PIN_25;
     let rst = p.PIN_12;
-    let display_cs = p.PIN_9;
+    let cs = p.PIN_9;
     let dcx = p.PIN_8;
     let mosi = p.PIN_11;
     let clk = p.PIN_10;
@@ -49,18 +50,18 @@ async fn main(_spawner: Spawner) {
     config.phase = spi::Phase::CaptureOnSecondTransition;
     config.polarity = spi::Polarity::IdleHigh;
 
-    let spi = Spi::new_blocking_txonly(p.SPI1, clk, mosi, config);
+    let spi = Spi::new_txonly(p.SPI1, clk, mosi, p.DMA_CH0, config);
 
-    let display_cs = Output::new(display_cs, Level::High);
+    let spi = ExclusiveDevice::new(spi, Output::new(cs, Level::High), Delay);
+
     let dcx = Output::new(dcx, Level::Low);
     let rst = Output::new(rst, Level::Low);
-    // dcx: 0 = command, 1 = data
 
     // Enable LCD backlight
     let _bl = Output::new(bl, Level::High);
 
     // display interface abstraction from SPI and DC
-    let di = SPIInterface::new(spi, dcx, display_cs);
+    let di = SPIInterface::new(spi, dcx);
 
     // Define the display from the display interface and initialize it
     let mut display = Builder::gc9a01(di)
@@ -70,6 +71,7 @@ async fn main(_spawner: Spawner) {
         .init(&mut Delay, Some(rst))
         .unwrap();
 
+    // Make the display all black
     display.clear(Rgb565::BLACK).unwrap();
 
     let raw_image_data = ImageRawLE::new(include_bytes!("../../assets/ferris.raw"), FERRIS_WIDTH);
@@ -81,7 +83,7 @@ async fn main(_spawner: Spawner) {
         y: (((r >> 8) % 10) + 5) as i32,
     };
     loop {
-        // Move Ferris
+        // Keep Ferris in the LCD area
         let bb = ferris.bounding_box();
         let tl = bb.top_left;
         let br = bb.bottom_right().unwrap();
@@ -112,7 +114,7 @@ async fn main(_spawner: Spawner) {
             .unwrap();
         // Translate Ferris
         ferris.translate_mut(delta);
-        // Display the image
+        // Display Ferris
         ferris.draw(&mut display).unwrap();
         Timer::after(Duration::from_millis(50)).await;
     }
